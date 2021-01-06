@@ -3,11 +3,13 @@ import sys
 
 import pygame
 from pygame.sprite import collide_rect
+from random import randint, choice
 
 FPS = 50
 WIDTH = 500
 HEIGHT = 500
 STEP = 1
+ENEMY_LIST = ['\Slime', '\AngryPig', '\Bat']
 
 pygame.init()
 size = WIDTH, HEIGHT
@@ -48,6 +50,7 @@ def load_image(folder, name, colorkey=None):
 
 tile_images = {
     'grass': load_image('sprites', 'Green.png'),
+    'spawn_plase': load_image('sprites', 'Green.png'),
     'wall': load_image('sprites', 'wall.png')
 
 }
@@ -125,44 +128,17 @@ class Camera:
 camera = Camera()
 
 
-class AnimatedSprite(pygame.sprite.Sprite):
-    def __init__(self, sheet, columns, rows, x, y):
-        super().__init__(all_sprites)
-        self.frames = []
-        self.cut_sheet(sheet, columns, rows)
-        self.cur_frame = 0
-        self.image = self.frames[self.cur_frame]
-        self.rect = self.image.get_rect().move(
-                     tile_width * x, tile_height * y)
-
-    def cut_sheet(self, sheet, columns, rows):
-        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
-                                sheet.get_height() // rows)
-        for j in range(rows):
-            for i in range(columns):
-                frame_location = (self.rect.w * i, self.rect.h * j)
-                self.frames.append(sheet.subsurface(pygame.Rect(
-                    frame_location, self.rect.size)))
-
-    def update(self):
-        clock.tick(60)
-        self.cur_frame = (self.cur_frame + 1) % len(self.frames)
-        self.image = self.frames[self.cur_frame]
-
-    def updete(self):
-
-        for el in tiles_group:
-            if collide_rect(self, el) and el.type in ['wall', 'box']:
-                self.rect.x = beforex
-                self.rect.y = beforey
-
-
 class Enemys(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y):
+    def __init__(self, pos_x, pos_y, who):
         super().__init__(enemy_group, all_sprites)
-        self.image = enemy_image
-        self.rect = self.image.get_rect().move(
-            tile_width * pos_x + 15, tile_height * pos_y + 5)
+        self.image = load_image('sprites\Enemies' + who, 'stay_r.png', colorkey=-1)
+        self.rect = self.image.get_rect().move(pos_x, pos_y)
+
+
+def spawn_enemis():
+    for pos in tiles_group:
+        if pos.type == 'spawn_plase':
+            Enemys(pos.rect.x, pos.rect.y, choice(ENEMY_LIST))
 
 
 class Tile(pygame.sprite.Sprite):
@@ -210,6 +186,8 @@ def generate_level(level):
                 Tile('wall', x, y)
             elif level[y][x] == '.':
                 Tile('grass', x, y)
+            elif level[y][x] == '+':
+                Tile('spawn_plase', x, y)
             elif level[y][x] == '@':
                 Tile('grass', x, y)
                 new_player = Player(x, y)
@@ -219,6 +197,11 @@ def generate_level(level):
 
 
 player, level_x, level_y = generate_level(load_level('map.txt'))
+spawn_enemis()
+print('Количество спрайтов:', len(all_sprites))
+print('Кол-во страйтоп игрока:', len(player_group))
+print('Кол-во спрайтов окружения:', len(tiles_group))
+print('Кол-во спрайтов врагов:', len(enemy_group))
 
 beforex = 0
 beforey = 0
@@ -248,7 +231,7 @@ while running:
     screen.fill((33, 31, 100))
     tiles_group.draw(screen)
     player_group.draw(screen)
-
+    enemy_group.draw(screen)
     camera.update(player)
     # обновляем положение всех спрайтов
     for sprite in all_sprites:
