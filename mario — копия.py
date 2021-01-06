@@ -15,7 +15,7 @@ pygame.init()
 size = WIDTH, HEIGHT
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
-
+player_direction = 'right'
 
 
 # основной персонаж
@@ -26,6 +26,7 @@ all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
+fireBoll_group = pygame.sprite.Group()
 
 
 
@@ -55,7 +56,7 @@ tile_images = {
 
 }
 player_image = load_image('sprites', 's_r.png', colorkey=-1)
-
+fireBoll_image = load_image('sprites', 'fire_boll.png', colorkey=-1)
 
 tile_width = tile_height = 64
 
@@ -164,18 +165,43 @@ class Player(pygame.sprite.Sprite):
                 self.rect.x = beforex
                 self.rect.y = beforey
 
-    def rotation(self, direction):
-        global player, player_image
-        if direction == "left":
+    def rotation(self):
+        global player, player_image, player_direction
+        if player_direction == "left":
             player.kill()
             player_image = load_image('sprites', 's_l.png', colorkey=-1)
             player = Player(player.rect.x, player.rect.y)
             player.rect.x, player.rect.y = beforex, beforey
-        elif direction == 'right':
+        elif player_direction == 'right':
             player.kill()
             player_image = load_image('sprites', 's_r.png', colorkey=-1)
             player = Player(player.rect.x, player.rect.y)
             player.rect.x, player.rect.y = beforex, beforey
+
+
+class FireBoll(pygame.sprite.Sprite):
+    def __init__(self, direction):
+        super().__init__(fireBoll_group, all_sprites)
+        self.image = fireBoll_image
+        self.rect = self.image.get_rect().move(player.rect.x + 11,
+                                               player.rect.y + 11)
+        self.direction = direction
+
+    def update(self):
+        for el in tiles_group:
+            if collide_rect(self, el) and el.type in ['wall', 'box']:
+                self.kill()
+        for en in enemy_group:
+            if collide_rect(self, en):
+                self.kill()
+                en.kill()
+
+
+        for boll in fireBoll_group:
+            if boll.direction == 'right':
+                boll.rect.x += 1
+            else:
+                boll.rect.x -= 1
 
 
 def generate_level(level):
@@ -202,6 +228,7 @@ print('Количество спрайтов:', len(all_sprites))
 print('Кол-во страйтоп игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
 print('Кол-во спрайтов врагов:', len(enemy_group))
+print('Кол-во огненый шаров:', len(fireBoll_group))
 
 beforex = 0
 beforey = 0
@@ -218,20 +245,27 @@ while running:
             beforex = player.rect.x
             beforey = player.rect.y
             if event.key == pygame.K_LEFT or event.key == pygame.K_a:
-                player.rotation('left')
+                player_direction = 'left'
+                player.rotation()
                 player.rect.x -= STEP
             if event.key == pygame.K_RIGHT or event.key == pygame.K_d:
-                player.rotation('right')
+                player_direction = 'right'
+                player.rotation()
                 player.rect.x += STEP
             if event.key == pygame.K_UP or event.key == pygame.K_w:
                 player.rect.y -= STEP
             if event.key == pygame.K_DOWN or event.key == pygame.K_s:
                 player.rect.y += STEP
             player.updete()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if len(fireBoll_group) < 5:
+                FireBoll(player_direction)
     screen.fill((33, 31, 100))
     tiles_group.draw(screen)
-    player_group.draw(screen)
     enemy_group.draw(screen)
+    player_group.draw(screen)
+    fireBoll_group.draw(screen)
+    fireBoll_group.update()
     camera.update(player)
     # обновляем положение всех спрайтов
     for sprite in all_sprites:
