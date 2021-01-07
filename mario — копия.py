@@ -9,6 +9,7 @@ FPS = 50
 WIDTH = 500
 HEIGHT = 500
 STEP = 1
+COUNT_BOSS_DAMAGE = 50
 ENEMY_LIST = ['\Slime', '\AngryPig', '\Bat']
 
 pygame.init()
@@ -16,17 +17,20 @@ size = WIDTH, HEIGHT
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
 player_direction = 'right'
-
-
+kills_number = 0
+spawn_boss = False
 # основной персонаж
 player = None
-
+boss = None
 # группы спрайтов
 all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
 fireBoll_group = pygame.sprite.Group()
+countKills_group = pygame.sprite.Group()
+boss_enemy_group = pygame.sprite.Group()
+
 
 
 
@@ -52,11 +56,13 @@ def load_image(folder, name, colorkey=None):
 tile_images = {
     'grass': load_image('sprites', 'Green.png'),
     'spawn_plase': load_image('sprites', 'Green.png'),
+    'spawn_boss_plase': load_image('sprites', 'Green.png'),
     'wall': load_image('sprites', 'wall.png')
 
 }
 player_image = load_image('sprites', 's_r.png', colorkey=-1)
 fireBoll_image = load_image('sprites', 'fire_boll.png', colorkey=-1)
+countKills_image = load_image('sprites\chisla', '0.png', colorkey=-1)
 
 tile_width = tile_height = 64
 
@@ -129,6 +135,34 @@ class Camera:
 camera = Camera()
 
 
+class Tile(pygame.sprite.Sprite):
+    def __init__(self, tile_type, pos_x, pos_y):
+        super().__init__(tiles_group, all_sprites)
+        self.image = tile_images[tile_type]
+        self.type = tile_type
+        self.rect = self.image.get_rect().move(
+            tile_width * pos_x, tile_height * pos_y)
+
+
+class Enemys_Boss(pygame.sprite.Sprite):
+    def __init__(self, pos_x, pos_y):
+        super().__init__(boss_enemy_group, all_sprites)
+        self.hit_count = 0
+        self.x = pos_x
+        self.y = pos_y
+        self.image = pygame.transform.scale(load_image('sprites\Enemies\Bosses', 'spikes_boss_l.png', colorkey=-1),
+                                            (123, 78))
+        self.rect = self.image.get_rect().move(pos_x, pos_y)
+
+    def updete(self):
+        global kills_number, spawn_boss
+        if self.hit_count == COUNT_BOSS_DAMAGE:
+            self.kill()
+            kills_number = 0
+            kills.load_number(0)
+            spawn_boss = False
+
+
 class Enemys(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y, who):
         super().__init__(enemy_group, all_sprites)
@@ -142,13 +176,23 @@ def spawn_enemis():
             Enemys(pos.rect.x, pos.rect.y, choice(ENEMY_LIST))
 
 
-class Tile(pygame.sprite.Sprite):
-    def __init__(self, tile_type, pos_x, pos_y):
-        super().__init__(tiles_group, all_sprites)
-        self.image = tile_images[tile_type]
-        self.type = tile_type
-        self.rect = self.image.get_rect().move(
-            tile_width * pos_x, tile_height * pos_y)
+class CountKills(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(countKills_group, all_sprites)
+        self.image = pygame.transform.scale(countKills_image, (32, 31))
+        self.rect = self.image.get_rect()
+
+    def change(self):
+        global kills, countKills_image, kills_number
+        if kills_number < 50:
+            kills_number += 1
+        kills.kill()
+        self.load_number(kills_number)
+
+    def load_number(self, chislo):
+        global countKills_image, kills
+        countKills_image = load_image('sprites\chisla', str(chislo) + '.png', colorkey=-1)
+        kills = CountKills()
 
 
 class Player(pygame.sprite.Sprite):
@@ -159,7 +203,6 @@ class Player(pygame.sprite.Sprite):
             tile_width * pos_x + 15, tile_height * pos_y + 5)
 
     def updete(self):
-
         for el in tiles_group:
             if collide_rect(self, el) and el.type in ['wall', 'box']:
                 self.rect.x = beforex
@@ -186,19 +229,19 @@ class FireBoll(pygame.sprite.Sprite):
         self.image = fireBoll_image
         self.rect = self.image.get_rect().move(player.rect.x + 11,
                                                player.rect.y + 11)
-        if player.rect.y <= direction[1] <= player.rect.y + 25:
+        if player.rect.y - 20 <= direction[1] <= player.rect.y + 45:
             if direction[0] < player.rect.x:
                 self.direction = 'left'
             elif direction[0] > player.rect.x:
                 self.direction = 'right'
-        elif player.rect.x <= direction[0] <= player.rect.x + 22:
+        elif player.rect.x - 20 <= direction[0] <= player.rect.x + 42:
             if direction[1] < player.rect.x:
                 self.direction = 'up'
             elif direction[1] > player.rect.x:
                 self.direction = 'down'
 
-
     def update(self):
+        global spawn_boss
         for el in tiles_group:
             if collide_rect(self, el) and el.type in ['wall', 'box']:
                 self.kill()
@@ -206,6 +249,11 @@ class FireBoll(pygame.sprite.Sprite):
             if collide_rect(self, en):
                 self.kill()
                 en.kill()
+                kills.change()
+        for boss in boss_enemy_group:
+            if collide_rect(self, boss) and spawn_boss:
+                self.kill()
+                boss.hit_count += 1
 
         for boll in fireBoll_group:
             if boll.direction == 'right':
@@ -230,6 +278,8 @@ def generate_level(level):
                 Tile('grass', x, y)
             elif level[y][x] == '+':
                 Tile('spawn_plase', x, y)
+            elif level[y][x] == 'B':
+                Tile('spawn_boss_plase', x, y)
             elif level[y][x] == '@':
                 Tile('grass', x, y)
                 new_player = Player(x, y)
@@ -244,8 +294,7 @@ print('Количество спрайтов:', len(all_sprites))
 print('Кол-во страйтов игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
 print('Кол-во спрайтов врагов:', len(enemy_group))
-print('Кол-во огненый шаров:', len(fireBoll_group))
-
+kills = CountKills()
 beforex = 0
 beforey = 0
 running = True
@@ -280,7 +329,17 @@ while running:
     tiles_group.draw(screen)
     enemy_group.draw(screen)
     fireBoll_group.draw(screen)
+    if kills_number >= 50:
+        for pos in tiles_group:
+            if pos.type == 'spawn_boss_plase':
+                boss = Enemys_Boss(pos.rect.x, pos.rect.y)
+        spawn_boss = True
+    if spawn_boss:
+        kills_number = 49
+        boss_enemy_group.draw(screen)
+        boss.updete()
     player_group.draw(screen)
+    screen.blit(kills.image, (0, 0))
     if len(enemy_group) == 0:
         spawn_enemis()
     fireBoll_group.update()
