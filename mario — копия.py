@@ -182,10 +182,21 @@ class Player(pygame.sprite.Sprite):
 class FireBoll(pygame.sprite.Sprite):
     def __init__(self, direction):
         super().__init__(fireBoll_group, all_sprites)
+        self.direction = None
         self.image = fireBoll_image
         self.rect = self.image.get_rect().move(player.rect.x + 11,
                                                player.rect.y + 11)
-        self.direction = direction
+        if player.rect.y <= direction[1] <= player.rect.y + 25:
+            if direction[0] < player.rect.x:
+                self.direction = 'left'
+            elif direction[0] > player.rect.x:
+                self.direction = 'right'
+        elif player.rect.x <= direction[0] <= player.rect.x + 22:
+            if direction[1] < player.rect.x:
+                self.direction = 'up'
+            elif direction[1] > player.rect.x:
+                self.direction = 'down'
+
 
     def update(self):
         for el in tiles_group:
@@ -196,12 +207,17 @@ class FireBoll(pygame.sprite.Sprite):
                 self.kill()
                 en.kill()
 
-
         for boll in fireBoll_group:
             if boll.direction == 'right':
                 boll.rect.x += 1
-            else:
+            elif boll.direction == 'left':
                 boll.rect.x -= 1
+            elif boll.direction == 'up':
+                boll.rect.y -= 1
+            elif boll.direction == 'down':
+                boll.rect.y += 1
+            else:
+                boll.kill()
 
 
 def generate_level(level):
@@ -225,7 +241,7 @@ def generate_level(level):
 player, level_x, level_y = generate_level(load_level('map.txt'))
 spawn_enemis()
 print('Количество спрайтов:', len(all_sprites))
-print('Кол-во страйтоп игрока:', len(player_group))
+print('Кол-во страйтов игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
 print('Кол-во спрайтов врагов:', len(enemy_group))
 print('Кол-во огненый шаров:', len(fireBoll_group))
@@ -259,12 +275,14 @@ while running:
             player.updete()
         if event.type == pygame.MOUSEBUTTONDOWN:
             if len(fireBoll_group) < 5:
-                FireBoll(player_direction)
+                FireBoll(event.pos)
     screen.fill((33, 31, 100))
     tiles_group.draw(screen)
     enemy_group.draw(screen)
-    player_group.draw(screen)
     fireBoll_group.draw(screen)
+    player_group.draw(screen)
+    if len(enemy_group) == 0:
+        spawn_enemis()
     fireBoll_group.update()
     camera.update(player)
     # обновляем положение всех спрайтов
