@@ -9,7 +9,8 @@ FPS = 50
 WIDTH = 500
 HEIGHT = 500
 STEP = 1
-COUNT_BOSS_DAMAGE = 50
+KILL_SCORE = 1
+KILL_BOSS_SCORE = 10
 ENEMY_LIST = ['\Slime', '\AngryPig', '\Bat']
 
 pygame.init()
@@ -17,7 +18,7 @@ size = WIDTH, HEIGHT
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
 player_direction = 'right'
-kills_number = 0
+kills_number = 49
 spawn_boss = False
 # основной персонаж
 player = None
@@ -63,6 +64,7 @@ tile_images = {
 player_image = load_image('sprites', 's_r.png', colorkey=-1)
 fireBoll_image = load_image('sprites', 'fire_boll.png', colorkey=-1)
 countKills_image = load_image('sprites\chisla', '0.png', colorkey=-1)
+score_image = pygame.transform.scale(load_image('sprites', 'score_w.png', colorkey=-1), (84, 16))
 
 tile_width = tile_height = 64
 
@@ -117,6 +119,16 @@ def load_level(filename):
     return list(map(lambda x: x.ljust(max_width, '.'), level_map))
 
 
+class Score:
+    def __init__(self):
+        self.score = 0
+        self.font = pygame.font.Font(None, 30)
+        self.text = None
+
+    def change(self):
+        self.text = self.font.render(str(self.score), True, (255, 255, 255))
+
+
 class Camera:
     # зададим начальный сдвиг камеры
     def __init__(self):
@@ -144,9 +156,10 @@ class Tile(pygame.sprite.Sprite):
             tile_width * pos_x, tile_height * pos_y)
 
 
-class Enemys_Boss(pygame.sprite.Sprite):
+class EnemysBoss(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y):
         super().__init__(boss_enemy_group, all_sprites)
+        self.health = 100
         self.hit_count = 0
         self.x = pos_x
         self.y = pos_y
@@ -155,12 +168,20 @@ class Enemys_Boss(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(pos_x, pos_y)
 
     def updete(self):
-        global kills_number, spawn_boss
-        if self.hit_count == COUNT_BOSS_DAMAGE:
+        global kills_number, spawn_boss, score
+        if self.health == 0:
             self.kill()
+            score.score += KILL_BOSS_SCORE
             kills_number = 0
             kills.load_number(0)
             spawn_boss = False
+        self.boss_health()
+
+    def boss_health(self):
+        pygame.draw.rect(screen, (0, 0, 0), (self.rect.x + 10, self.rect.y - 16,
+                                               self.health + 1, 11), 3)
+        pygame.draw.rect(screen, (255, 0, 0), (self.rect.x + 11, self.rect.y - 15,
+                                               self.health, 10))
 
 
 class Enemys(pygame.sprite.Sprite):
@@ -241,7 +262,7 @@ class FireBoll(pygame.sprite.Sprite):
                 self.direction = 'down'
 
     def update(self):
-        global spawn_boss
+        global spawn_boss, score
         for el in tiles_group:
             if collide_rect(self, el) and el.type in ['wall', 'box']:
                 self.kill()
@@ -250,10 +271,12 @@ class FireBoll(pygame.sprite.Sprite):
                 self.kill()
                 en.kill()
                 kills.change()
+                score.score += KILL_SCORE
         for boss in boss_enemy_group:
             if collide_rect(self, boss) and spawn_boss:
                 self.kill()
                 boss.hit_count += 1
+                boss.health -= 5
 
         for boll in fireBoll_group:
             if boll.direction == 'right':
@@ -295,6 +318,7 @@ print('Кол-во страйтов игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
 print('Кол-во спрайтов врагов:', len(enemy_group))
 kills = CountKills()
+score = Score()
 beforex = 0
 beforey = 0
 running = True
@@ -329,17 +353,20 @@ while running:
     tiles_group.draw(screen)
     enemy_group.draw(screen)
     fireBoll_group.draw(screen)
+    player_group.draw(screen)
     if kills_number >= 50:
         for pos in tiles_group:
             if pos.type == 'spawn_boss_plase':
-                boss = Enemys_Boss(pos.rect.x, pos.rect.y)
+                boss = EnemysBoss(pos.rect.x, pos.rect.y)
         spawn_boss = True
     if spawn_boss:
         kills_number = 49
         boss_enemy_group.draw(screen)
         boss.updete()
-    player_group.draw(screen)
     screen.blit(kills.image, (0, 0))
+    screen.blit(score_image, (350, 4))
+    score.change()
+    screen.blit(score.text, (450, 3))
     if len(enemy_group) == 0:
         spawn_enemis()
     fireBoll_group.update()
