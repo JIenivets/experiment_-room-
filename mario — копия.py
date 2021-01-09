@@ -2,7 +2,7 @@ import os
 import sys
 
 import pygame
-from pygame.sprite import collide_rect
+from pygame.sprite import collide_rect, collide_mask
 from random import randint, choice
 
 FPS = 50
@@ -12,14 +12,18 @@ STEP = 1
 KILL_SCORE = 1
 KILL_BOSS_SCORE = 10
 ENEMY_LIST = ['\Slime', '\AngryPig', '\Bat']
+FRUITS_LIST = ['apple', 'bananas', 'cherries', 'kiwi',
+               'melon', 'orange', 'pineapple', 'strawberry']
 
 pygame.init()
 size = WIDTH, HEIGHT
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
 player_direction = 'right'
+player_health = 100
 kills_number = 49
 spawn_boss = False
+damage_take = True
 # основной персонаж
 player = None
 boss = None
@@ -31,6 +35,7 @@ enemy_group = pygame.sprite.Group()
 fireBoll_group = pygame.sprite.Group()
 countKills_group = pygame.sprite.Group()
 boss_enemy_group = pygame.sprite.Group()
+fruit_group = pygame.sprite.Group()
 
 
 
@@ -54,6 +59,19 @@ def load_image(folder, name, colorkey=None):
     return image
 
 
+fruits = {
+    'apple': load_image('sprites\Fruits', 'apple_one.png', colorkey=-1),
+    'bananas': load_image('sprites\Fruits', 'bananas_one.png', colorkey=-1),
+    'cherries': load_image('sprites\Fruits', 'cherries_one.png', colorkey=-1),
+    'kiwi': load_image('sprites\Fruits', 'kiwi_one.png', colorkey=-1),
+    'melon': load_image('sprites\Fruits', 'melon_one.png', colorkey=-1),
+    'orange': load_image('sprites\Fruits', 'orange_one.png', colorkey=-1),
+    'pineapple': load_image('sprites\Fruits', 'pineapple_one.png', colorkey=-1),
+    'strawberry': load_image('sprites\Fruits', 'strawberry_one.png', colorkey=-1),
+
+}
+
+
 tile_images = {
     'grass': load_image('sprites', 'Green.png'),
     'spawn_plase': load_image('sprites', 'Green.png'),
@@ -65,6 +83,8 @@ player_image = load_image('sprites', 's_r.png', colorkey=-1)
 fireBoll_image = load_image('sprites', 'fire_boll.png', colorkey=-1)
 countKills_image = load_image('sprites\chisla', '0.png', colorkey=-1)
 score_image = pygame.transform.scale(load_image('sprites', 'score_w.png', colorkey=-1), (84, 16))
+heart = pygame.transform.scale(load_image('sprites', 'heart.png', colorkey=-1), (33, 33))
+gameover = load_image('sprites', 'gg.png', colorkey=-1)
 
 tile_width = tile_height = 64
 
@@ -161,15 +181,15 @@ class EnemysBoss(pygame.sprite.Sprite):
         super().__init__(boss_enemy_group, all_sprites)
         self.health = 100
         self.hit_count = 0
-        self.x = pos_x
-        self.y = pos_y
         self.image = pygame.transform.scale(load_image('sprites\Enemies\Bosses', 'spikes_boss_l.png', colorkey=-1),
                                             (123, 78))
+        self.mack = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(pos_x, pos_y)
 
     def updete(self):
-        global kills_number, spawn_boss, score
-        if self.health == 0:
+        global kills_number, spawn_boss, score, spawn_fruits
+        if self.health <= 0:
+            spawn_fruits(boss.rect.x, boss.rect.y, boss.rect.w, boss.rect.h)
             self.kill()
             score.score += KILL_BOSS_SCORE
             kills_number = 0
@@ -179,7 +199,7 @@ class EnemysBoss(pygame.sprite.Sprite):
 
     def boss_health(self):
         pygame.draw.rect(screen, (0, 0, 0), (self.rect.x + 10, self.rect.y - 16,
-                                               self.health + 1, 11), 3)
+                                             self.health + 1, 11), 3)
         pygame.draw.rect(screen, (255, 0, 0), (self.rect.x + 11, self.rect.y - 15,
                                                self.health, 10))
 
@@ -195,6 +215,20 @@ def spawn_enemis():
     for pos in tiles_group:
         if pos.type == 'spawn_plase':
             Enemys(pos.rect.x, pos.rect.y, choice(ENEMY_LIST))
+
+
+class Fruits(pygame.sprite.Sprite):
+    def __init__(self, fruit, pos_x, pos_y):
+        super().__init__(fruit_group, all_sprites)
+        self.image = fruits[fruit]
+        self.rect = self.image.get_rect().move(pos_x, pos_y)
+
+
+def spawn_fruits(pos_x, pos_y, w, h):
+    for f in range(5):
+        x = pos_x + w // 2 + randint(-100, 100)
+        y = pos_y + h // 2 + randint(-100, 100)
+        Fruits(choice(FRUITS_LIST), x, y)
 
 
 class CountKills(pygame.sprite.Sprite):
@@ -220,14 +254,42 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y):
         super().__init__(player_group, all_sprites)
         self.image = player_image
+        self.mack = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(
             tile_width * pos_x + 15, tile_height * pos_y + 5)
 
     def updete(self):
+        global player_health, damage_take
         for el in tiles_group:
             if collide_rect(self, el) and el.type in ['wall', 'box']:
                 self.rect.x = beforex
                 self.rect.y = beforey
+        for en in enemy_group:
+            if collide_rect(self, en):
+                if player_health > 0:
+                    player_health -= 1
+
+                break
+        for boss in boss_enemy_group:
+            if collide_mask(self, boss):
+                self.rect.x = beforex
+                self.rect.y = beforey
+                if player_health > 0 and damage_take:
+                    player_health -= 10
+                damage_take = False
+                # if boss.rect.left <= self.rect.right <= boss.rect.left + 25:
+                #     self.rect.x -= 100
+                # elif boss.rect.right <= self.rect.left >= boss.rect.right - 25:
+                #     self.rect.x += 100
+
+            else:
+                self.take_damage(boss, 60)
+
+        for f in fruit_group:
+            if collide_rect(self, f):
+                if player_health < 100:
+                    player_health += 5
+                f.kill()
 
     def rotation(self):
         global player, player_image, player_direction
@@ -241,6 +303,24 @@ class Player(pygame.sprite.Sprite):
             player_image = load_image('sprites', 's_r.png', colorkey=-1)
             player = Player(player.rect.x, player.rect.y)
             player.rect.x, player.rect.y = beforex, beforey
+
+    def player_health(self):
+        global player_health
+        if player_health > 0:
+            pygame.draw.rect(screen, (0, 0, 0), (38, 7, player_health + 1, 16), 3)
+            pygame.draw.rect(screen, (255, 0, 0), (39, 8, player_health, 15))
+        # else:
+        #     player.kill()
+        #     screen.blit(gameover, (0, 0))
+
+    def take_damage(self, take, renge):
+        global damage_take
+        x = take.rect.x + take.rect.w // 2
+        y = take.rect.y + take.rect.h // 2
+        if self.rect.x <= x - renge or self.rect.x >= x + renge \
+                or self.rect.y <= y - renge or self.rect.y >= y + renge and not damage_take:
+            damage_take = True
+
 
 
 class FireBoll(pygame.sprite.Sprite):
@@ -317,6 +397,7 @@ print('Количество спрайтов:', len(all_sprites))
 print('Кол-во страйтов игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
 print('Кол-во спрайтов врагов:', len(enemy_group))
+print('\n')
 kills = CountKills()
 score = Score()
 beforex = 0
@@ -353,8 +434,10 @@ while running:
     tiles_group.draw(screen)
     enemy_group.draw(screen)
     fireBoll_group.draw(screen)
+    if len(fruit_group) > 0:
+        fruit_group.draw(screen)
     player_group.draw(screen)
-    if kills_number >= 50:
+    if kills_number >= 50 and not spawn_boss:
         for pos in tiles_group:
             if pos.type == 'spawn_boss_plase':
                 boss = EnemysBoss(pos.rect.x, pos.rect.y)
@@ -363,12 +446,14 @@ while running:
         kills_number = 49
         boss_enemy_group.draw(screen)
         boss.updete()
-    screen.blit(kills.image, (0, 0))
+    screen.blit(heart, (0, 0))
+    screen.blit(kills.image, (0, 33))
     screen.blit(score_image, (350, 4))
     score.change()
     screen.blit(score.text, (450, 3))
     if len(enemy_group) == 0:
         spawn_enemis()
+    player.player_health()
     fireBoll_group.update()
     camera.update(player)
     # обновляем положение всех спрайтов
