@@ -4,6 +4,10 @@ import sys
 import pygame
 from pygame.sprite import collide_rect, collide_mask
 from random import randint, choice
+import sqlite3
+import pygame_gui
+
+
 
 FPS = 50
 WIDTH = 500
@@ -14,25 +18,28 @@ SPIKES_SPEED = 2
 KILL_SCORE = 1
 KILL_BOSS_SCORE = 10
 TIMER_SET = pygame.USEREVENT + 1
-EMEMIES_MOVE = pygame.USEREVENT + 2
+EMEMIES_MOVE = pygame.USEREVENT + 3
+BOSSES_MOVE = pygame.USEREVENT + 2
+tile_width = tile_height = 64
 ENEMY_LIST = ['\Slime', '\AngryPig', '\Bat']
 FRUITS_LIST = ['apple', 'bananas', 'cherries', 'kiwi',
                'melon', 'orange', 'pineapple', 'strawberry']
-SPIKES = [('spik1'), ('spik2'), ('spik3'),
-          ('spik4'), ('spik5')]
+SPIKES = ['spik1', 'spik2', 'spik3',  'spik4', 'spik5']
 
 pygame.init()
 size = WIDTH, HEIGHT
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
+manager = pygame_gui.UIManager((800, 600))
 start_x = None
 start_y = None
 player_direction = 'right'
-kills_number = 49
+kills_number = 0
 spawn_boss = False
 damage_take = True
 over = False
 spikes_move = False
+result = False
 # основной персонаж
 player = None
 boss = None
@@ -46,8 +53,6 @@ countKills_group = pygame.sprite.Group()
 boss_enemy_group = pygame.sprite.Group()
 fruit_group = pygame.sprite.Group()
 spikes_group = pygame.sprite.Group()
-
-
 
 
 
@@ -81,7 +86,6 @@ fruits = {
 
 }
 
-
 tile_images = {
     'grass': load_image('sprites', 'Green.png'),
     'spawn_plase': load_image('sprites', 'Green.png'),
@@ -90,15 +94,31 @@ tile_images = {
     'wall': load_image('sprites', 'wall.png')
 
 }
+
 player_image = load_image('sprites', 's_r.png', colorkey=-1)
 fireBoll_image = load_image('sprites', 'fire_boll.png', colorkey=-1)
 countKills_image = load_image('sprites\chisla', '0.png', colorkey=-1)
 score_image = pygame.transform.scale(load_image('sprites', 'score.png', colorkey=-1), (84, 16))
 heart = pygame.transform.scale(load_image('sprites', 'heart.png', colorkey=-1), (33, 33))
 gameover = pygame.transform.scale(load_image('sprites', 'game over.png', colorkey=-1), (280, 180))
-restart = pygame.transform.scale(load_image('sprites', 'restart.png', colorkey=-1), (370, 27))
+restart = pygame.transform.scale(load_image('sprites', 'to_restart.png', colorkey=-1), (370, 27))
+save_result = pygame.transform.scale(load_image('sprites', 'save_result.png', colorkey=-1), (246, 12))
+for_save = pygame.transform.scale(load_image('sprites', 'fs.png', colorkey=-1), (286, 58))
+enter_your_name = pygame.transform.scale(load_image('sprites', 'eyn.png', colorkey=-1), (230, 16))
+click_button = pygame.transform.scale(load_image('sprites', 'tcotb.png', colorkey=-1), (300, 14))
+restart_button = pygame.transform.scale(load_image('sprites', 'Restart.png', colorkey=-1), (42, 43))
 
-tile_width = tile_height = 64
+
+line = pygame_gui.elements.UITextEntryLine(
+    relative_rect=pygame.Rect((330, 145), (155, 10)),
+    manager=manager)
+
+btn_save = pygame_gui.elements.UIButton(
+    relative_rect=pygame.Rect((330, 292), (155, 30)),
+    text="Save",
+    manager=manager)
+
+
 
 
 def terminate():
@@ -107,34 +127,37 @@ def terminate():
 
 
 def start_screen():
-    intro_text = ["ЗАСТАВКА", "",
-                  "Правила игры",
-                  "Если в правилах несколько строк,",
-                  "приходится выводить их построчно"]
+    title = pygame.transform.scale(load_image('sprites', 'title.png', colorkey=-1), (380, 110))
+    play = pygame.transform.scale(load_image('sprites', 'Play.png', colorkey=-1), (84, 85))
+    leaderboard = pygame.transform.scale(load_image('sprites', 'Leaderboard.png', colorkey=-1), (42, 43))
+    settings = pygame.transform.scale(load_image('sprites', 'Settings.png', colorkey=-1), (42, 43))
 
-    fon = pygame.transform.scale(load_image('sprites', 'fajrbackground.png'), (WIDTH, HEIGHT))
+    fon = pygame.transform.scale(load_image('sprites', 'noonbackground.png'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
-    font = pygame.font.Font(None, 30)
-    text_coord = 50
-    for line in intro_text:
-        string_rendered = font.render(line, 1, pygame.Color('black'))
-        intro_rect = string_rendered.get_rect()
-        text_coord += 10
-        intro_rect.top = text_coord
-        intro_rect.x = 10
-        text_coord += intro_rect.height
-        screen.blit(string_rendered, intro_rect)
+    screen.blit(title, (60, 90))
+    screen.blit(play, (208, 250))
+    screen.blit(leaderboard, (0, 457))
+    screen.blit(settings, (458, 457))
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.KEYDOWN or \
-                    event.type == pygame.MOUSEBUTTONDOWN:
-                return  # начинаем игру
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if 292 > event.pos[0] > 208 and 335 > event.pos[1] > 250:
+                    pygame.key.set_repeat(1, 1)
+                    return
+                if 43 > event.pos[0] > 0 and 500 > event.pos[1] > 457:
+                    con = sqlite3.connect("save_result.db")
+                    cur = con.cursor()
+                    result = cur.execute("""SELECT * FROM result""").fetchall()
+                    print('')
+                    for elem in result:
+                        print(elem[1].capitalize() + ':', elem[2])
+
+                    con.close()
         pygame.display.flip()
         clock.tick(FPS)
-
 start_screen()
 
 
@@ -201,12 +224,16 @@ class EnemysBoss(pygame.sprite.Sprite):
         self.mack = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(pos_x, pos_y)
         pygame.time.set_timer(TIMER_SET, 500)
+        pygame.time.set_timer(BOSSES_MOVE, 1)
 
     def updete(self):
         global kills_number, spawn_boss, score, spawn_fruits, over
         if self.health <= 0:
             spawn_fruits(boss.rect.x, boss.rect.y, boss.rect.w, boss.rect.h)
             self.kill()
+            for s in spikes_group:
+                s.kill()
+            spikes_group.empty()
             score.score += KILL_BOSS_SCORE
             kills_number = 0
             kills.load_number(0)
@@ -245,8 +272,16 @@ class EnemysBoss(pygame.sprite.Sprite):
                                                self.health, 10))
 
     def move(self):
-        self.rect.x += randint(-5, 5)
-        self.rect.y += randint(-5, 5)
+        global player
+        if not self.rect.x + self.rect.w // 2 + 10 > player.rect.x + player.rect.w // 2 > self.rect.x + self.rect.w // 2 - 10:
+            if self.direction == 'l':
+                self.rect.x -= 2
+            else:
+                self.rect.x += 2
+        if player.rect.y < self.rect.y:
+            self.rect.y -= 2
+        if player.rect.y > self.rect.y:
+            self.rect.y += 2
 
 
 class BossSpikes(pygame.sprite.Sprite):
@@ -293,27 +328,44 @@ class Enemys(pygame.sprite.Sprite):
         self.direction = direction
         self.image = load_image('sprites\Enemies' + who, 'stay_r.png', colorkey=-1)
         self.rect = self.image.get_rect().move(pos_x, pos_y)
+        pygame.time.set_timer(EMEMIES_MOVE, 1)
 
     def update(self):
         global player
         for en in enemy_group:
-            if player.rect.x < en.rect.x and en.rect.x - player.rect.x <= 20 and en.direction == 'r':
-                en.image = load_image('sprites\Enemies' + en.who, 'stay_l.png', colorkey=-1)
+            if player.rect.x < en.rect.x:
+                en.image = pygame.transform.flip(en.image, True, False)
                 en.direction = 'l'
-            elif player.rect.x > en.rect.x + en.rect.w and player.rect.x - en.rect.x <= 50 \
-                    and en.direction == 'l':
-                en.image = load_image('sprites\Enemies' + en.who, 'stay_r.png', colorkey=-1)
+            elif player.rect.x > en.rect.x:
+                en.image = pygame.transform.flip(en.image, True, False)
                 en.direction = 'r'
 
     def move(self):
-        pass
+        global player
+        for t in tiles_group:
+            if collide_rect(self, t) and t.type == "wall":
+                pass
+        if self.direction == 'l':
+            self.rect.x -= 2
+        else:
+            self.rect.x += 2
+        if player.rect.y < self.rect.y:
+            self.rect.y -= 2
+        if player.rect.y > self.rect.y:
+            self.rect.y += 2
 
 
 def spawn_enemis():
+    global player
+    direction = ''
     for pos in tiles_group:
         if pos.type == 'spawn_plase':
-            Enemys(pos.rect.x + randint(-20, 20), pos.rect.y + randint(-20, 20), choice(ENEMY_LIST), choice(['r', 'l']))
-
+            if player.rect.x > pos.rect.x:
+                direction = 'r'
+            elif player.rect.x < pos.rect.x:
+                direction = 'l'
+            Enemys(pos.rect.x + randint(-20, 20), pos.rect.y + randint(-20, 20), choice(ENEMY_LIST), direction)
+            enemy_group.update()
 
 class Fruits(pygame.sprite.Sprite):
     def __init__(self, fruit, pos_x, pos_y):
@@ -369,10 +421,8 @@ class Player(pygame.sprite.Sprite):
                 break
         for boss in boss_enemy_group:
             if collide_mask(self, boss):
-                self.rect.x = beforex
-                self.rect.y = beforey
                 if self.health > 0 and damage_take:
-                    self.health -= 10
+                    self.health -= 5
                 damage_take = False
             else:
                 self.take_damage(boss, 60)
@@ -396,6 +446,7 @@ class Player(pygame.sprite.Sprite):
             pygame.draw.rect(screen, (0, 0, 0), (38, 7, self.health + 2, 17), 2)
             pygame.draw.rect(screen, (255, 0, 0), (39, 8, self.health, 15))
         else:
+            pygame.mouse.set_visible(False)
             over = True
 
     def take_damage(self, take, renge):
@@ -514,34 +565,65 @@ def game_draw():
     enemy_group.update()
 
 
+def xz_kak_nazvet():
+    global over, player, score, kills_number, kills, boss, spawn_boss, result
+    screen.fill((33, 31, 100))
+    pygame.mouse.set_visible(True)
+    player.health = 100
+    for p in tiles_group:
+        if p.type == 'spawn_player_plase':
+            player.rect.x, player.rect.y = p.rect.x, p.rect.y
+            break
+    kills_number = 0
+    kills.load_number(kills_number)
+    if spawn_boss:
+        boss.kill()
+        spawn_boss = False
+    for s in spikes_group:
+        s.kill()
+    spikes_group.empty()
+    fruit_group.empty()
+    enemy_group.empty()
+    over = False
+
+
 def restart_game():
-    global over, player, score, kills_number, kills, boss, spawn_boss
+    global result
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_f:
-                screen.fill((33, 31, 100))
-                pygame.mouse.set_visible(True)
-                player.health = 100
-                for p in tiles_group:
-                    if p.type == 'spawn_player_plase':
-                        player.rect.x, player.rect.y = p.rect.x, p.rect.y
-                        break
-                kills_number = 0
-                kills.load_number(kills_number)
+                xz_kak_nazvet()
                 score.score = 0
-                if spawn_boss:
-                    boss.kill()
-                    spawn_boss = False
-                for s in spikes_group:
-                    s.kill()
-                spikes_group.empty()
-                fruit_group.empty()
-                enemy_group.empty()
-                over = False
+            elif event.key == pygame.K_SPACE:
+                result = True
+                xz_kak_nazvet()
+
+
+def save_menu():
+    global result
+    time_delta = 1000
+    screen.fill((33, 31, 100))
+    screen.blit(restart_button, (229, 400))
+    screen.blit(for_save, (107, 20))
+    screen.blit(enter_your_name, (15, 150))
+    screen.blit(click_button, (15, 300))
+    manager.update(time_delta)
+    manager.draw_ui(screen)
+
+
+def save_result_in_bd():
+    # Подключение к БД
+    con = sqlite3.connect('save_result.db')
+    # Создание курсора
+    cur = con.cursor()
+    cur.execute("""INSERT INTO result (nickname, score)
+                                    VALUES (?, ?)""", (line.text, score.score)).fetchall()
+    con.commit()
 
 
 player, level_x, level_y = generate_level(load_level('map.txt'))
 spawn_enemis()
+print('\n')
 print('Количество спрайтов:', len(all_sprites))
 print('Кол-во страйтов игрока:', len(player_group))
 print('Кол-во спрайтов окружения:', len(tiles_group))
@@ -553,10 +635,12 @@ beforex = 0
 beforey = 0
 running = True
 pygame.key.set_repeat(1, 1)
+
 while running:
-        # внутри игрового цикла ещё один цикл
+        # внутри игрового цикла ещё один циклda
         # приема и обработки сообщений
     for event in pygame.event.get():
+        manager.process_events(event)
             # при закрытии окна
         if event.type == pygame.QUIT:
             running = False
@@ -584,18 +668,40 @@ while running:
         if spawn_boss:
             if event.type == TIMER_SET:
                 spikes_move = True
+            if event.type == BOSSES_MOVE:
+                boss.move()
+        if event.type == EMEMIES_MOVE:
+            for en in enemy_group:
+                en.move()
+        if (event.type == pygame.USEREVENT and event.user_type == pygame_gui.UI_BUTTON_PRESSED and
+                event.ui_element == btn_save):
+            print('name:', line.text, '\n', 'score:', score.score, '\n')
+            save_result_in_bd()
+            score.score = 0
+        if result:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if 371 > event.pos[0] > 229 and 443 > event.pos[1] > 400:
+                    result = False
+                    score.score = 0
+                    start_screen()
+
     screen.fill((33, 31, 100))
     if not over:
             game_draw()
     else:
-            screen.blit(gameover, (110, 133))
-            screen.blit(restart, (65, 343))
-            pygame.mouse.set_visible(False)
+            screen.blit(gameover, (110, 93))
+            screen.blit(restart, (65, 303))
+            screen.blit(save_result, (127, 340))
             restart_game()
+    if result:
+        pygame.mouse.set_visible(True)
+        save_menu()
+
     camera.update(player)
     # обновляем положение всех спрайтов
     for sprite in all_sprites:
         camera.apply(sprite)
     pygame.display.flip()
     # clock.tick(FPS)
+
 terminate()
